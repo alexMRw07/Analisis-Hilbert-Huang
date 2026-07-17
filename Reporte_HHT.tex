@@ -1,0 +1,458 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[spanish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\geometry{margin=2.5cm}
+
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  frame=single,
+  breaklines=true,
+  backgroundcolor=\color{gray!10}
+}
+
+\title{\textbf{Análisis de Señales de Calidad de Energía mediante la Transformada de Hilbert-Huang}}
+\author{Autor}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+%% ============================================================
+\section{Introducción}
+%% ============================================================
+
+
+El análisis de señales de calidad de energía (\textit{Power Quality}, PQ) es fundamental para la detección, clasificación e identificación de perturbaciones en sistemas eléctricos. Las señales de PQ presentan características no estacionarias y no lineales, tales como hundimientos de tensión (\textit{sags}), elevaciones (\textit{swells}), transitorios oscilatorios, \textit{flicker} y distorsión armónica, que ocurren de manera localizada en el tiempo.
+
+Los métodos convencionales de análisis espectral, como la Transformada Rápida de Fourier (FFT), asumen estacionariedad de la señal, lo cual limita su capacidad para capturar eventos temporales localizados. La Transformada de Hilbert-Huang (HHT), propuesta por Norden E. Huang en 1998, ofrece una alternativa adaptativa y local que no requiere funciones base predefinidas, permitiendo analizar señales no estacionarias y no lineales de manera natural.
+
+El presente reporte tiene como objetivo evaluar el desempeño de la HHT en el análisis de señales sintéticas de calidad de energía, comparándola con la FFT y la descomposición por paquetes Wavelet (WPT). Se analiza la capacidad de reconstrucción de cada método y se estudia el efecto de la ventana de análisis sobre la calidad de los resultados.
+
+
+%% ============================================================
+\section{Fundamento Teórico}
+%% ============================================================
+
+\subsection{Transformada de Hilbert-Huang (HHT)}
+
+La HHT consta de dos etapas principales: la Descomposición Empírica en Modos (EMD) y el Análisis Espectral de Hilbert (HSA).
+
+\subsubsection{Descomposición Empírica en Modos (EMD)}
+
+La EMD descompone adaptativamente una señal $x(t)$ en un conjunto finito de funciones de modo intrínseco (IMFs) y un residuo:
+\begin{equation}
+x(t) = \sum_{k=1}^{n} \text{IMF}_k(t) + r(t)
+\end{equation}
+
+Cada IMF satisface dos condiciones:
+\begin{enumerate}
+    \item El número de extremos y el número de cruces por cero difieren a lo sumo en uno.
+    \item En cualquier punto, el valor medio de la envolvente superior (máximos) y la envolvente inferior (mínimos) es cero.
+\end{enumerate}
+
+
+El proceso de extracción de IMFs se denomina \textit{sifting} y consiste en:
+\begin{enumerate}
+    \item Identificar los máximos y mínimos locales de la señal.
+    \item Construir las envolventes superior e inferior mediante interpolación cúbica (\textit{spline}).
+    \item Calcular la media de las envolventes.
+    \item Restar la media de la señal original para obtener un candidato a IMF.
+    \item Repetir hasta cumplir un criterio de parada.
+\end{enumerate}
+
+\subsubsection{Análisis Espectral de Hilbert (HSA)}
+
+Una vez obtenidas las IMFs, se aplica la Transformada de Hilbert a cada una:
+\begin{equation}
+H[\text{IMF}_k(t)] = \frac{1}{\pi} \text{V.P.} \int_{-\infty}^{+\infty} \frac{\text{IMF}_k(\tau)}{t - \tau} \, d\tau
+\end{equation}
+
+Esto permite obtener la señal analítica:
+\begin{equation}
+z_k(t) = \text{IMF}_k(t) + j \cdot H[\text{IMF}_k(t)] = a_k(t) \cdot e^{j\theta_k(t)}
+\end{equation}
+
+De donde se extraen:
+\begin{itemize}
+    \item \textbf{Amplitud instantánea:} $a_k(t) = |z_k(t)|$
+    \item \textbf{Frecuencia instantánea:} $f_k(t) = \frac{1}{2\pi} \frac{d\theta_k}{dt}$
+\end{itemize}
+
+
+\subsubsection{Espectro de Hilbert}
+
+El espectro de Hilbert $H(\omega, t)$ es una representación tiempo-frecuencia que muestra la distribución de energía:
+\begin{equation}
+H(\omega, t) = \sum_{k=1}^{n} a_k(t)^2 \cdot \delta(\omega - \omega_k(t))
+\end{equation}
+
+El espectro marginal $h(\omega)$ integra la energía en el tiempo:
+\begin{equation}
+h(\omega) = \int_{0}^{T} H(\omega, t) \, dt
+\end{equation}
+
+\subsubsection{Hilbert Normalizada}
+
+Para mejorar la estimación de frecuencia instantánea en señales con modulación de amplitud, se normaliza la IMF por su envolvente:
+\begin{equation}
+C_o(t) = \frac{\text{IMF}(t)}{E(t)}
+\end{equation}
+donde $E(t)$ es la envolvente obtenida por interpolación de los picos de $|\text{IMF}(t)|$. La señal normalizada $C_o(t)$ tiene amplitud unitaria, lo que permite una estimación más precisa de la fase y frecuencia instantánea.
+
+
+\subsection{Transformada Rápida de Fourier (FFT)}
+
+La FFT descompone una señal en componentes sinusoidales estacionarias:
+\begin{equation}
+X[k] = \sum_{n=0}^{N-1} x[n] \cdot e^{-j 2\pi k n / N}
+\end{equation}
+
+Proporciona amplitud y fase para cada frecuencia discreta $f_k = k \cdot f_s / N$. Su principal limitación es que asume que las componentes frecuenciales son constantes en todo el intervalo de análisis.
+
+\subsection{Paquetes Wavelet (WPT)}
+
+La descomposición por paquetes Wavelet proporciona una representación tiempo-frecuencia mediante filtros pasa-banda en cascada. A diferencia de la Wavelet discreta (DWT), la WPT descompone tanto las aproximaciones como los detalles en cada nivel, proporcionando resolución uniforme en frecuencia.
+
+\subsection{Comparación Teórica de Métodos}
+
+\begin{table}[H]
+\centering
+\caption{Comparación teórica de métodos de análisis.}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Característica} & \textbf{FFT} & \textbf{HHT (EMD)} & \textbf{WPT} \\
+\midrule
+Base & Predefinida & Adaptativa & Predefinida \\
+Estacionariedad & Requiere & No requiere & No requiere \\
+Resolución temporal & Ninguna & Instantánea & Variable \\
+Resolución frecuencial & $f_s/N$ (fija) & Variable & Según nivel \\
+Linealidad & Requiere & No requiere & Requiere \\
+Reconstrucción & Perfecta & Perfecta & Perfecta \\
+\bottomrule
+\end{tabular}
+\label{tab:comparacion_teorica}
+\end{table}
+
+
+%% ============================================================
+\section{Metodología}
+%% ============================================================
+
+\subsection{Señales de Prueba}
+
+Se utilizaron tres señales sintéticas generadas con el \textit{toolbox} PQSyDa (\textit{Power Quality Synthetic Data}), con los siguientes parámetros base:
+\begin{itemize}
+    \item Frecuencia fundamental: 60 Hz
+    \item Frecuencia de muestreo: 18{,}000 Hz
+    \item Duración: 10 ciclos (0.1667 s)
+    \item Muestras totales: 3{,}000
+\end{itemize}
+
+\subsubsection{Señal \#5: Transitorio Oscilatorio}
+
+\begin{equation}
+x(t) = A\sin(2\pi f t - \phi) + A\beta e^{-(t-t_1)/\tau}\sin(2\pi f_n(t-t_1) - \theta) \cdot u(t)
+\end{equation}
+
+Parámetros generados:
+\begin{itemize}
+    \item Frecuencia del transitorio: $f_n = 634.2$ Hz
+    \item Constante de tiempo: $\tau = 20.1$ ms
+    \item Amplitud del transitorio: $\beta = 0.22$
+    \item Intervalo del transitorio: $[0.040, 0.076]$ s
+\end{itemize}
+
+
+\subsubsection{Señal \#18: Armónicos + Swell + Flicker}
+
+\begin{equation}
+x(t) = A(1+\beta \cdot u(t))\left[\alpha_1\sin(2\pi f t) + \alpha_3\sin(3 \cdot 2\pi f t) + \alpha_5\sin(5 \cdot 2\pi f t)\right](1+\lambda\sin(2\pi f_f t))
+\end{equation}
+
+Parámetros generados:
+\begin{itemize}
+    \item Armónico 3\textsuperscript{ro}: $\alpha_3 = 13.9\%$
+    \item Armónico 5\textsuperscript{to}: $\alpha_5 = 8.7\%$
+    \item Flicker: $\lambda = 0.066$, $f_f = 17.8$ Hz
+    \item Swell: $\beta = 0.41$, intervalo $[0.015, 0.159]$ s
+\end{itemize}
+
+\subsubsection{Señal \#28: Swell + Armónicos + Flicker + Transitorio Oscilatorio}
+
+Esta señal combina todas las perturbaciones anteriores en una sola forma de onda. Parámetros generados:
+\begin{itemize}
+    \item Armónicos: $\alpha_3 = 6.2\%$, $\alpha_5 = 13.4\%$
+    \item Flicker: $\lambda = 0.089$, $f_f = 14.9$ Hz
+    \item Swell: $\beta = 0.46$, intervalo $[0.046, 0.069]$ s
+    \item Oscilatorio: $f_n = 606.6$ Hz, $\tau = 20.3$ ms
+\end{itemize}
+
+
+\subsection{Ventanas de Análisis}
+
+Cada señal se analizó con dos ventanas de diferente duración:
+
+\begin{table}[H]
+\centering
+\caption{Ventanas de análisis utilizadas.}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Ventana} & \textbf{Muestras} & \textbf{Duración} & \textbf{Ciclos (60 Hz)} & \textbf{$\Delta f$} \\
+\midrule
+Completa & 3{,}000 & 0.167 s & 10 & 6 Hz \\
+Reducida & 1{,}400 & 0.078 s & 4.7 & 12.9 Hz \\
+\bottomrule
+\end{tabular}
+\label{tab:ventanas}
+\end{table}
+
+\subsection{Procesamiento Aplicado}
+
+El script de MATLAB implementa las siguientes etapas:
+\begin{enumerate}
+    \item \textbf{EMD:} Descomposición de la señal en IMFs mediante la función \texttt{emd()} de MATLAB.
+    \item \textbf{HSA:} Cálculo de amplitud y frecuencia instantánea mediante la Transformada de Hilbert.
+    \item \textbf{Espectro de Hilbert:} Construcción de $H(\omega,t)$ y el espectro marginal $h(\omega)$.
+    \item \textbf{Hilbert Normalizada:} Normalización de la IMF1 por su envolvente.
+    \item \textbf{FFT:} Espectro de Fourier para comparación.
+    \item \textbf{WPT:} Descomposición por paquetes Wavelet (nivel 8, wavelet db40).
+    \item \textbf{Reconstrucción:} Comparación FFT (picos detectados) vs HHT (suma de IMFs + residuo).
+\end{enumerate}
+
+\subsection{Métricas de Evaluación}
+
+\begin{itemize}
+    \item \textbf{RMSE} (\textit{Root Mean Square Error}): Cuantifica el error de reconstrucción.
+    \item \textbf{Número de componentes:} Cantidad de elementos necesarios para la reconstrucción.
+    \item \textbf{Estabilidad de frecuencia instantánea:} Evaluación cualitativa de la consistencia temporal.
+\end{itemize}
+
+
+%% ============================================================
+\section{Interpretación de Resultados}
+%% ============================================================
+
+\subsection{Descomposición EMD}
+
+\subsubsection{Efecto de la ventana de análisis sobre las IMFs}
+
+Con 3{,}000 muestras, el EMD logra separar correctamente los eventos temporales de las componentes estacionarias. En la señal \#5, la IMF1 captura exclusivamente el transitorio oscilatorio (localizado en $[0.04, 0.07]$ s) mientras que la IMF2 contiene la fundamental de 60 Hz estable. Con 1{,}400 muestras se presenta \textit{mode mixing} significativo en las señales complejas (\#18 y \#28), donde las componentes se contaminan entre sí.
+
+\subsubsection{Mode Mixing}
+
+El \textit{mode mixing} es el principal problema observado. Ocurre cuando una misma IMF contiene oscilaciones de escalas temporales muy diferentes, o cuando oscilaciones similares se distribuyen en diferentes IMFs. Este fenómeno se acentúa con:
+\begin{itemize}
+    \item Ventanas de análisis cortas (menos ciclos para la interpolación de envolventes).
+    \item Señales con modulación de amplitud (\textit{swell}, \textit{flicker}).
+    \item Múltiples perturbaciones simultáneas.
+\end{itemize}
+
+
+\subsection{Espectro de Hilbert y Espectro Marginal}
+
+El espectro marginal de Hilbert presenta dificultades con señales que tienen modulación de amplitud (\textit{swell} + \textit{flicker}). La modulación de amplitud es interpretada por el EMD como una oscilación de baja frecuencia, desplazando la energía hacia frecuencias menores a la fundamental real.
+
+\begin{table}[H]
+\centering
+\caption{Identificación de la fundamental (60 Hz) en el espectro marginal.}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Señal} & \textbf{3000 muestras} & \textbf{1400 muestras} \\
+\midrule
+\#5 Oscillatory & Pico claro en 60 Hz & Pico en 60 Hz \\
+\#18 HarmSwellFlicker & No identifica 60 Hz & No identifica 60 Hz \\
+\#28 SwellHarmFlickerOsc & Parcial (35--85 Hz) & No identifica 60 Hz \\
+\bottomrule
+\end{tabular}
+\label{tab:espectro_marginal}
+\end{table}
+
+En la representación tiempo-frecuencia $H(\omega,t)$, el transitorio oscilatorio de la señal \#5 aparece como una concentración de energía en alta frecuencia ($>300$ Hz) limitada al intervalo temporal $[0.04, 0.07]$ s. Fuera del transitorio, se observa una línea estable en $\sim60$ Hz.
+
+
+\subsection{Hilbert Normalizada}
+
+La normalización de la IMF1 por su envolvente mostró resultados variables. Funciona bien cuando la envolvente $E(t)$ es suave y no cruza por valores cercanos a cero. Cuando $E(t)$ tiene transiciones abruptas, la división $\text{IMF}/E(t)$ amplifica el ruido, generando \textit{spikes} en la frecuencia instantánea.
+
+\begin{table}[H]
+\centering
+\caption{Resultados de la Hilbert Normalizada.}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Señal} & \textbf{3000 muestras} & \textbf{1400 muestras} \\
+\midrule
+\#5 Oscillatory & $\sim$60 Hz estable & 60 Hz $\rightarrow$ 350 Hz (transitorio) \\
+\#18 HarmSwellFlicker & 60 Hz + spikes & Inestable (0--400 Hz) \\
+\#28 SwellHarmFlickerOsc & $\sim$60 Hz estable & Completamente inestable \\
+\bottomrule
+\end{tabular}
+\label{tab:hilbert_norm}
+\end{table}
+
+El caso más notable es la señal \#28 con 3{,}000 muestras: a pesar de ser la señal más compleja, la Hilbert Normalizada logra extraer $\sim$60 Hz estable porque con suficientes datos la IMF1 captura la fundamental con envolvente suave.
+
+
+\subsection{Reconstrucción de Señales}
+
+\subsubsection{Reconstrucción HHT}
+
+\begin{table}[H]
+\centering
+\caption{RMSE de la reconstrucción HHT (suma de IMFs + residuo).}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Señal} & \textbf{Ventana} & \textbf{IMFs} & \textbf{RMSE (V)} \\
+\midrule
+\#5 Oscillatory & 1{,}400 & 4 & $6.37 \times 10^{-17}$ \\
+\#5 Oscillatory & 3{,}000 & 4 & $6.21 \times 10^{-17}$ \\
+\#18 HarmSwellFlicker & 1{,}400 & 4 & $1.46 \times 10^{-16}$ \\
+\#18 HarmSwellFlicker & 3{,}000 & 5 & $9.97 \times 10^{-17}$ \\
+\#28 SwellHarmFlickerOsc & 1{,}400 & 4 & $1.46 \times 10^{-16}$ \\
+\#28 SwellHarmFlickerOsc & 3{,}000 & 4 & $2.21 \times 10^{-16}$ \\
+\bottomrule
+\end{tabular}
+\label{tab:rmse_hht}
+\end{table}
+
+La reconstrucción HHT siempre produce RMSE del orden de $10^{-16}$ a $10^{-17}$ V (precisión de punto flotante de doble precisión). Esto se debe a que la EMD es una descomposición completa: $x(t) = \sum \text{IMFs} + \text{Residuo}$ es una identidad matemática, no una aproximación.
+
+
+\subsubsection{Reconstrucción FFT}
+
+\begin{table}[H]
+\centering
+\caption{RMSE de la reconstrucción FFT (picos espectrales detectados).}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+\textbf{Señal} & \textbf{Ventana} & \textbf{Componentes} & \textbf{RMSE (V)} \\
+\midrule
+\#5 Oscillatory & 3{,}000 & 2 & 0.0343 \\
+\#5 Oscillatory & 3{,}000 & 2 & 0.1291 \\
+\#18 HarmSwellFlicker & 3{,}000 & 5 & 0.0891 \\
+\#18 HarmSwellFlicker & 1{,}400 & 7 & 0.3861 \\
+\#28 SwellHarmFlickerOsc & 1{,}400 & 13 & 0.4652 \\
+\#28 SwellHarmFlickerOsc & 3{,}000 & 2 & 0.1291 \\
+\bottomrule
+\end{tabular}
+\label{tab:rmse_fft}
+\end{table}
+
+Observaciones principales:
+\begin{itemize}
+    \item \textbf{Señal \#5 (simple):} Solo 2 componentes logran RMSE = 0.034 V. El error se concentra exclusivamente en el intervalo del transitorio oscilatorio.
+    \item \textbf{Señal \#18 (intermedia):} Con 3{,}000 muestras y 5 componentes (60, 180, 200, 300, 360 Hz), se logra RMSE = 0.089 V.
+    \item \textbf{Señal \#28 (compleja):} Con 1{,}400 muestras, aun usando 13 componentes, el RMSE = 0.465 V. La FFT no puede representar los eventos no estacionarios.
+\end{itemize}
+
+El RMSE de la reconstrucción FFT no depende solo del número de componentes, sino de la naturaleza de la señal. Para señales no estacionarias, aumentar componentes tiene rendimientos decrecientes.
+
+
+\subsection{Comparación FFT vs HHT vs WPT}
+
+\begin{itemize}
+    \item \textbf{FFT:} Proporciona picos puntuales y claros en las frecuencias exactas. Ideal para señales estacionarias. Falla con eventos transitorios.
+    \item \textbf{HHT (Espectro Marginal):} Espectros más suaves y anchos que reflejan la naturaleza no estacionaria. Problema: la modulación de amplitud desplaza energía a frecuencias artificialmente bajas.
+    \item \textbf{WPT:} Buena resolución en bandas de frecuencia. Mejor compromiso tiempo-frecuencia que la FFT. La resolución depende del nivel y la wavelet elegida.
+\end{itemize}
+
+\subsection{Efecto de la Ventana de Análisis}
+
+\begin{table}[H]
+\centering
+\caption{Impacto de la ventana de análisis en los resultados.}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{Aspecto} & \textbf{3000 muestras} & \textbf{1400 muestras} \\
+\midrule
+EMD -- Separación de modos & Buena & Pobre (\textit{mode mixing}) \\
+Espectro marginal & Picos definidos & Picos difusos \\
+Hilbert Normalizada & Frecuencia estable & Inestable \\
+FFT -- RMSE & 0.03 -- 0.13 V & 0.34 -- 0.47 V \\
+FFT -- Resolución frecuencial & 6 Hz & 12.9 Hz \\
+Ciclos de fundamental & 10 & $\sim$4.7 \\
+\bottomrule
+\end{tabular}
+\label{tab:efecto_ventana}
+\end{table}
+
+
+\subsection{Capacidad de Extrapolación}
+
+Se evaluó la posibilidad de reconstruir la señal completa a partir de una ventana parcial:
+
+\begin{itemize}
+    \item \textbf{FFT:} Puede extrapolar indefinidamente, pero solo para componentes estacionarias (armónicos constantes). Eventos no estacionarios fuera de la ventana no se predicen.
+    \item \textbf{HHT:} No puede extrapolar. Las IMFs son funciones locales sin modelo paramétrico; la reconstrucción solo es válida dentro de la ventana analizada.
+\end{itemize}
+
+%% ============================================================
+\section{Conclusiones}
+%% ============================================================
+
+\subsection{Sobre la Transformada de Hilbert-Huang}
+
+\begin{enumerate}
+    \item \textbf{Reconstrucción perfecta:} La HHT (suma de IMFs + residuo) siempre reconstruye la señal original con error del orden de la precisión numérica de la máquina ($\sim10^{-16}$ V). Esto es una propiedad intrínseca del método (identidad matemática), no una ventaja analítica.
+
+    \item \textbf{Separación tiempo-frecuencia:} La principal ventaja de la HHT es su capacidad para separar eventos temporales localizados (transitorios) de componentes estacionarias (fundamental, armónicos). Esto se demostró en la señal \#5, donde el EMD aisló el transitorio oscilatorio en una IMF separada.
+
+
+    \item \textbf{Limitaciones con modulación de amplitud:} El EMD presenta dificultades con señales que combinan \textit{swell} + \textit{flicker}, ya que la modulación de amplitud es interpretada como una oscilación de baja frecuencia, desplazando el espectro marginal.
+
+    \item \textbf{Sensibilidad a la ventana de análisis:} El EMD requiere suficientes ciclos de la componente más lenta para funcionar correctamente. Con ventanas cortas se presenta \textit{mode mixing}.
+\end{enumerate}
+
+\subsection{Sobre la Comparación de Métodos}
+
+\begin{enumerate}
+\setcounter{enumi}{4}
+    \item \textbf{FFT vs HHT para reconstrucción:} La comparación de RMSE no es justa directamente, ya que la HHT usa todas las componentes (descomposición completa) mientras la FFT solo usa los picos detectados. Una comparación significativa requiere usar solo las IMFs más energéticas.
+
+    \item \textbf{Complementariedad:} La FFT es superior para identificar frecuencias exactas y para extrapolar señales. La HHT es superior para localizar eventos en el tiempo. La WPT ofrece un compromiso intermedio.
+
+    \item \textbf{Recomendación práctica:} Para señales de PQ con perturbaciones mixtas, se recomienda un enfoque combinado:
+    \begin{itemize}
+        \item FFT para identificar las componentes armónicas estacionarias.
+        \item HHT para localizar temporalmente los eventos transitorios.
+        \item WPT como verificación cruzada de la distribución de energía.
+    \end{itemize}
+\end{enumerate}
+
+
+\subsection{Sobre la Ventana Mínima de Análisis}
+
+\begin{enumerate}
+\setcounter{enumi}{7}
+    \item \textbf{Mínimo práctico observado:} Para señales con fundamental de 60 Hz y perturbaciones simples, 1{,}400 muestras ($\sim$4.7 ciclos) son suficientes para un análisis básico. Para señales con múltiples perturbaciones simultáneas, se requieren al menos 3{,}000 muestras ($\sim$10 ciclos).
+
+    \item \textbf{Compromiso datos vs calidad:} Reducir la ventana de análisis impacta: la resolución frecuencial de la FFT ($\Delta f = f_s/N$), la capacidad del EMD para separar modos, y la suavidad de la envolvente en la Hilbert Normalizada.
+
+    \item \textbf{Estrategias de mitigación:} Para ventanas cortas se recomienda: extensión por espejo de la señal, uso de EEMD/CEEMDAN en lugar de EMD clásico, y selección de wavelet más corta para WPT.
+\end{enumerate}
+
+%% ============================================================
+\section*{Referencias}
+%% ============================================================
+
+\begin{enumerate}
+    \item Huang, N.E. et al. (1998). ``The empirical mode decomposition and the Hilbert spectrum for nonlinear and non-stationary time series analysis.'' \textit{Proceedings of the Royal Society A}, 454, 903--995.
+    \item PQSyDa Toolbox: \url{https://github.com/Micke1995/PQSyDa}
+    \item IEEE Std 1159-2019. ``IEEE Recommended Practice for Monitoring Electric Power Quality.''
+\end{enumerate}
+
+\end{document}
